@@ -1,0 +1,442 @@
+---
+title: "Coursera/Swiftkey Capstone Milestone Report"
+author: "Don Martin"
+date: "August 6, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The objective of the Coursera/Swiftkey Capstone project is to apply the skills and techniques learned throughout the program toward building a next word prediction application to take a phrase (of one or more words) as input then predict **the next word** as output. This milestone report will walk through my journey, observations and findings from the **exploration** of SwiftKey data to be used for the project. It will conclude with some thoughts on next steps in this process. The milestone report will conclude with some thoughts on next steps in this process.    
+
+*A note regarding this analysis.  During the research for this project, memory management in R needed to be addressed for N-Gram analysis to be handled by my machine. These included releasing variables, and garbage collection.  I have hidden this r code in this paper in the interest of readability.* 
+
+## Exploratory Analysis
+
+The following steps were performed in the Exploratory Data Analysis thus far in the project.
+
+1. Obtain, Download, Unpack, and Load the US English Swiftkey samples
+2. Capture Summaries of the Original Raw Data Files
+3. Build a corpus from a sample of US English text
+4. Clean the corpus and filter profanity
+5. Build N-Gram tokens (Uni-Gram, Bi-Gram, and Tri-Gram)
+6. Present N-Grams for analysis
+
+This section will walk through and demonstrate key elements of the code used so the reader can re-produce the results. It will also document some of the decisions made along the journey. 
+
+### 1. Obtain, Download, and Unpack the Swiftkey corpus
+
+```{r setenv, include=FALSE }
+# Set Working Directory
+  setwd("C:/Users/dmartin/COURSERA")
+  if( !file.exists ("./Data_Science_Capstone") ){
+    dir.create  ("./Data_Science_Capstone")
+  }  
+  setwd("./Data_Science_Capstone")
+  
+# Set aspects of the locale for the R process  
+  Sys.setlocale(category = "LC_ALL", locale = "English")
+  
+# Memory Management Settings 
+  memory.limit(size=64000)
+  options(warn =-1)
+  
+# Clear Memory   
+  rm(list = ls(all=TRUE))
+  gc()
+```
+
+Large databases comprising of text in a target language are commonly used when generating language models for various purposes.  The HC Corpora to be used for this project contains twelve corpora divided by blog, news, and twitter samples in four languages (English, German, Russian and Finnish).  The code below was used to obtain the sample.
+
+```{r download}
+  zipFile   <- "Coursera-SwiftKey.zip"
+  unZipDir  <- "./final/en_US/en_US.blogs.txt"
+  UrlAddr   <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+  
+  # Execute the download
+    if( !file.exists (zipFile) ){ download.file(UrlAddr, zipFile) } 
+  
+  # Unpack the zipFile
+    if( !file.exists (unZipDir) ){ unzip(zipFile) }
+  
+```
+
+```{r m1, include=FALSE }
+  # Remove un-needed variables
+    rm(zipFile,unZipDir,UrlAddr)
+    gc()
+```
+
+*This zipfile is 561,193 KB in size and takes a while to download. The above code only performs the download if necessary.*
+
+The unzipped file is a directory/folder called final, with four subdirectories;**de_DE** (Germain), **fi_FI** (Finnish), and **ru_RU** (Russian) and **en_US** (Americain English) containing the following text to be analyzed;
+
+- en_US.blogs.txt - Samples of blog postings
+- en_US.news.txt - Samples of online news articles
+- en_US.twitter.txt - Sample tweets 
+
+The code below is used to load the samples for analysis in R. The files are read line by line using UTF (Universal Character Set+ Transformation Format-8-bit) capable of encoding all possible characters.  Notice the news file was opened in binary mode to overcome several character issues encountered during research. 
+
+```{r}
+  # Load "./final/en_US/en_US.blogs.txt"  
+    blogLines <- readLines("./final/en_US/en_US.blogs.txt",encoding="UTF-8",warn=FALSE,skipNul = TRUE)
+  
+  # Load "./final/en_US/en_US.twitter.txt"  
+    twitLines <- readLines("final/en_US/en_US.twitter.txt",encoding="UTF-8",warn=FALSE,skipNul = TRUE)
+ 
+  # Load "./final/en_US/en_US.news.txt" using binary mode as there are special character issues  
+    con       <- file("final/en_US/en_US.news.txt",open="rb")
+    newsLines <- readLines(con,encoding="UTF-8",warn=FALSE,skipNul = TRUE)
+    close(con)
+```
+
+
+```{r m2, include=FALSE }
+  # Remove un-needed variables
+    rm(con)
+    gc()
+```
+
+### 2. Capture Summaries of the Original Raw Data Files
+
+With the data loaded, the following code is used to make some initial observations regarding the data.
+
+```{r}
+  suppressMessages( library(stringi))       # For fast text/string manipulation
+
+  # Capture file size in MB
+    blogMB <- round((file.info( "./final/en_US/en_US.blogs.txt" )$size   / 1024^2)* 0.01, digits = 2)
+    twitMB <- round((file.info( "./final/en_US/en_US.twitter.txt" )$size / 1024^2)* 0.01, digits = 2)
+    newsMB <- round((file.info( "./final/en_US/en_US.news.txt" )$size    / 1024^2)* 0.01, digits = 2)
+  
+  # Capture Length of the loaded String vectors
+    blogLC <- length(blogLines)
+    twitLC <- length(twitLines)
+    newsLC <- length(newsLines)
+  
+  # Capture the number of words in each string vector
+    blogWC <- sum(stri_count_words(blogLines))
+    twitWC <- sum(stri_count_words(twitLines))
+    newsWC <- sum(stri_count_words(newsLines))
+  
+  # Capture the number of words in each string vector
+    fileStats <- data.frame( 
+      Text_Sample = c( "Blogs", "News", "Twitter"),     
+      Size_MB  = c(  blogMB,  newsMB, twitMB  ),
+      Lines    = c(  blogLC,  newsLC, twitLC  ),
+      Words    = c(  blogWC,  newsWC, twitWC  ))
+    fileStats
+    
+```
+
+**Sample Blog Text**
+```{r}
+  tail(blogLines)
+```
+
+**Sample News Text**
+```{r}
+  tail(newsLines)
+```
+
+**Sample Twitter Text**
+```{r}
+  tail(twitLines)
+```
+
+```{r m3, include=FALSE }
+  # Remove un-needed variables
+    rm(blogMB,blogLC,blogWC)
+    rm(newsMB,newsLC,newsWC)
+    rm(twitMB,twitLC,twitWC)
+    gc()
+```
+ 
+Some initial observations based on the above table: 
+
+- Each sample file unzipped is more than 150 MB in size.
+- Twitter has the most lines 2360148, but the least amount of words 30088605 (140 character limit)
+- Blogs inversely had the least lines 899288, and the most amount of words 37510168  
+- News falls in the middle with 1010242 lines, and 34749301 words.
+- There are 102,348,074 words in all three samples.  1% of that total is over a million words. 
+
+### 3. Build a corpus from a sample of US English text
+
+Inspection of each sample revealed non ASCII characters (<U+0091>, <U+0092>).  The code below was used to remove all non ASCII characters, as they add no value to our prediction solution.  This is done prior to sampling below as I only want to sample actual text.
+
+```{r Non-ASCII}
+  # Remove Non-ASCII Characters  
+    blogLines  <- iconv(blogLines, from="latin1", to="ASCII", sub="")
+    newsLines  <- iconv(newsLines, from="latin1", to="ASCII", sub="")
+    twitLines  <- iconv(twitLines, from="latin1", to="ASCII", sub="")
+```
+
+Sampling is done to get a quick analysis on the data, to reduce the time needed for pre-processing, to clean the data as well as tokenizing the words of a corpus into different n-gram. Initially I tried a percentage based sample, but was constrained due to approach and memory. I adjusted the approach to sample 10,000 records from each sample giving a bias towards news and blogs.
+
+```{r CreateSample}
+
+   set.seed(349)        # For repeatability
+   sampleSize <- 10000  
+  
+  # Sample each type
+    blogLines <- blogLines[sample(1:length(blogLines),sampleSize)]
+    newsLines <- newsLines[sample(1:length(newsLines),sampleSize)]
+    twitLines <- twitLines[sample(1:length(twitLines),sampleSize)]
+  
+  # Concatinate blog, news and twitter into one sample
+    sampleDoc <- c(blogLines,newsLines,twitLines)
+    
+```
+
+To clean and process the text sample, the tm package will be used. The main structure for managing documents in tm is a Corpus, representing a collection of text documents in this case our sample.
+
+```{r CreateCorpus}
+  suppressMessages( library(NLP))           # For Natural Language Processing techniques
+  suppressMessages( library(tm))            # For basic text-mining
+  suppressMessages( library(qdap))          # For Quantitative analysis of transcripts. (sent_detect)
+
+  # Split text paragraphs into sentences
+    sampleDoc <- sent_detect(sampleDoc, language = "en", model = NULL) 
+  
+  # Create the Corpus from the sample
+    docs <- VCorpus(VectorSource(list(sampleDoc)))
+    
+```
+
+```{r m4, include=FALSE }
+  # Remove un-needed variables
+    rm(blogLines,newsLines,twitLines,sampleDoc)
+    gc()
+```
+
+
+### 4. Clean the corpus and filter profanity
+
+Using the (Text Mining) "tm" package the text sample, is prepared for further processing. The function tm_map() is used to remove whitespace and perform Stemming. Stemming is the process of removing suffixes from words to get the common origin. It helps when comparing texts to be able to identify words with a common meaning and form as being identical. The content_transformer() is used to Convert to lower case, remove Punctuation, Numbers and URLs.  The process is also used to remove profanity, as defined by words banned by google, and obtained on this site. https://www.freewebheaders.com/full-list-of-bad-words-banned-by-google/
+
+```{r CleanCorpus}
+
+  suppressMessages( library(SnowballC))     # For Word-Stemming
+
+  # Remove Profanity
+
+    if( !file.exists ("./final/swearWords.txt") ){ 
+      
+         urlAddr <- "http://www.bannedwordlist.com/lists/swearWords.txt"
+      
+         download.file(urlAddr, "./final/swearWords.txt") 
+    }
+
+    if( file.exists ("./final/swearWords.txt") ){
+        profanity <- readLines("./final/swearWords.txt")
+    }
+    
+  # Supporting tm_mapFunctions
+    removeURLs <- function(x) gsub("http[[:alnum:]]*", "", x) 
+    toSpace    <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+    
+  # Remove Meta Characters
+    docs <- tm_map(docs, toSpace,"/|@|\\|\\,|\\:|\\&|\\-|\\)|\\(|\\{|\\}|\\[|\\]|\\+|=|~|<|>|\\^")   
+    docs <- tm_map(docs, content_transformer(removeURLs))         # Remove URLs
+    docs <- tm_map(docs, content_transformer(tolower))            # Convert to lower case
+    docs <- tm_map(docs, content_transformer(removePunctuation))  # Remove Punctuation
+    docs <- tm_map(docs, content_transformer(removeNumbers))      # Remove Numbers      
+    docs <- tm_map(docs, stripWhitespace)                         # Remove whitespace
+    if( file.exists ("./final/swearWords.txt") ){
+        profanity <- readLines("./final/swearWords.txt")
+        docs <- tm_map(docs, removeWords, profanity)              # Remove profanity
+    }
+    docs <- tm_map(docs, stemDocument, language="en")             # Stemming document
+    docs <- tm_map(docs, PlainTextDocument)                       # Create PlainTextDocument
+    
+```
+
+
+### 5. Build N-Gram tokens (Uni-Gram, Bi-Gram, and Tri-Gram)
+
+The following codes compute word frequencies for each document and orders them from largest to smallest. A document-term matrix or term-document matrix (TDM) is a mathematical matrix that describes the frequency of terms that occur in a collection of documents. In a document-term matrix, rows correspond to documents in the collection and columns correspond to terms (source: Wikipedia). For this analysis, only 1-gram, 2-gram, and 3-gram tokenizers are used. Sparse words are removed and a word-frequency list for each n-gram. Word-frequency data frames are produced for the top 25 to be used for plotting and analysis. This section leverages the **RWeka** package. 
+
+```{r N-grams}
+
+    suppressMessages( library(RWeka))         # For N-gram generation and tokenization
+
+ # Uni-GramTokenizer Functions  
+  # Create TermDocumentMatrix for Uni-grams
+    UnigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 1, max = 1))
+    TdmUni           <- TermDocumentMatrix(docs, 
+                                           control = list(tokenize = UnigramTokenizer))
+
+  # TermDocumentMatrix Processing  
+    TdmUni  <- removeSparseTerms(TdmUni, 0.1)     # Remove Sparse Terms  
+    freqUni <- rowSums(as.matrix(TdmUni))         # Calculate Uni-Gram frequency
+    freqUni <- sort(freqUni, decreasing = TRUE)   # SortUni-Gram frequency
+    
+
+# Bi-GramTokenizer Functions
+  # Create TermDocumentMatrix for Bi-grams
+    BigramTokenizer  <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+    TdmBi            <- TermDocumentMatrix(docs, 
+                                           control = list(tokenize = BigramTokenizer))
+  # TermDocumentMatrix Processing  
+    TdmBi   <- removeSparseTerms(TdmBi, 0.1)     # Remove Sparse Terms 
+    freqBi  <- rowSums(as.matrix(TdmBi))         # Calculate Bi-Gram frequency
+    freqBi  <- sort(freqBi,  decreasing = TRUE)  # Sort  Bi-Gram frequency
+
+    
+# Tri-GramTokenizer Functions
+  # Create TermDocumentMatrix for Tri-grams
+    TrigramTokenizer  <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+    TdmTri            <- TermDocumentMatrix(docs, 
+                                           control = list(tokenize = TrigramTokenizer))
+  # TermDocumentMatrix Processing  
+    TdmTri   <- removeSparseTerms(TdmTri, 0.1)     # Remove Sparse Terms 
+    freqTri  <- rowSums(as.matrix(TdmTri))         # Calculate Tri-Gram frequency
+    freqTri  <- sort(freqTri,  decreasing = TRUE)  # Sort  Tri-Gram frequency
+```
+
+```{r m5, include=FALSE }
+  # Remove un-needed variables
+    rm(TdmUni,TdmBi,TdmTri,docs)
+    gc()
+```
+
+### 6. Present N-Grams for analysis
+
+The corpus data is displayed below using word clouds, an effective means of displaying word frequencies. The most frequent words are displayed in respect to their size and centralization. One word cloud is plotted for each data type
+
+```{r WordClouds, echo=FALSE}
+
+  suppressMessages( library(wordcloud))     # For visualizing wordclouds
+  suppressMessages( library(RColorBrewer))  # For visualizing Color Palettes in Plots
+  
+# Select the top 50 Uni-Grams for Analysis
+  dfUni50       <- data.frame("Term"=names(head(freqUni,50)), 
+                             "Frequency"=head(freqUni,50))
+  dfUni50$Term1 <- reorder(dfUni50$Term, dfUni50$Frequency)
+   
+  par(mfrow=c(1,4))
+  wordcloud(words = dfUni50$Term1,
+            freq = dfUni50$Frequency,
+            random.order=FALSE,
+            rot.per=0.35,
+            use.r.layout=FALSE,
+            colors=brewer.pal(8, "Dark2"))
+
+  text(x=0.5, y=1.1, "UniGram Word Cloud")
+  
+# Select the top 25 Bi-Grams for analysis 
+  dfBi50        <- data.frame("Term"=names(head(freqBi,50)), 
+                                "Frequency"=head(freqBi,50))
+  dfBi50$Term1  <- reorder(dfBi50$Term,  dfBi50$Frequency)
+
+  wordcloud(words = dfBi50$Term1,
+            freq = dfBi50$Frequency,
+            random.order=FALSE,
+            rot.per=0.35,
+            use.r.layout=FALSE,
+            colors=brewer.pal(8, "Dark2"))
+  text(x=0.5, y=1.1, "BiGram Word Cloud")
+  
+# Select the top 50 Tri-Grams for analysis
+  dfTri50       <- data.frame("Term"=names(head(freqTri,50)), 
+                               "Frequency"=head(freqTri,50))
+  dfTri50$Term1 <- reorder(dfTri50$Term, dfTri50$Frequency)
+
+  wordcloud(words = dfTri50$Term1,
+            freq = dfTri50$Frequency,
+            random.order=FALSE,
+            rot.per=0.35,
+            use.r.layout=FALSE,
+            colors=brewer.pal(8, "Dark2"))
+  text(x=0.5, y=1.1, "TriGram Word Cloud")
+```
+
+```{r m6, include=FALSE }
+  # Remove un-needed variables
+    rm(dfUni50,dfBi50,dfTri50)
+    gc()
+```
+
+The bar graphs are presented below to provide a better sense of the N-Grams frequency. The Uni-Gram graph includes an example of the code used.  The the remaining graphs use similar code not shown.
+
+```{r Unibargraphs}
+
+suppressMessages( library(ggplot2))       # For plotting elegant charts,graphs
+
+# Select the top 25 Uni-Grams for plotting
+  dfUni25       <- data.frame("Term"=names(head(freqUni,25)), 
+                               "Frequency"=head(freqUni,25))
+  dfUni25$Term1 <- reorder(dfUni25$Term, dfUni25$Frequency)
+
+  UniPlot <-
+         ggplot(dfUni25, aes(x = Term1, y = Frequency))                                   +
+         geom_bar(stat = "identity", color="gray55", fill="green")                        +
+         geom_text(data=dfUni25,aes(x=Term1,y=-2000,label=Frequency),vjust=0, size=3)     +
+         xlab("Unigram")                                                                  + 
+         ylab("Frequency")                                                                +
+         ggtitle("Top 25 UniGram Tokenized Word Frequency")                               +
+         theme(plot.title = element_text(lineheight=.8, face="bold"))                     +
+         coord_flip()
+  print(UniPlot)
+  
+```
+
+
+*The Uni-Gram(word) appearing most often in our sample is **the** with 39845 occurances. This information may not be helpful in predicting the next word, but perhaps provides insight into common words that may be input into our engine.*
+
+```{r Bibargraph, echo=FALSE}
+
+# Select the top 25 Bi-Grams for plotting 
+  dfBi25        <- data.frame("Term"=names(head(freqBi,20)), 
+                                "Frequency"=head(freqBi,20))
+  dfBi25$Term1  <- reorder(dfBi25$Term,  dfBi25$Frequency)
+   
+  BiPlot <-
+        ggplot(dfBi25, aes(x = Term1, y = Frequency))                                    +
+        geom_bar(stat = "identity", color="gray55", fill="steelblue2")                   +
+        geom_text(data=dfBi25,aes(x=Term1,y=-250,label=Frequency),vjust=0, size=3)       +
+        xlab("Bigram")                                                                   + 
+        ylab("Frequency")                                                                + 
+        ggtitle("Top 25 BiGram Tokenized Word Frequency")                                +
+        theme(plot.title = element_text(lineheight=.8, face="bold"))                     +
+        coord_flip()
+  print(BiPlot)
+  
+
+```
+
+*Bi-Grams appearing most are phrases like **of the**, **in the**, **to the**, **on the**,  **for the**,  **at the**, **and the**, **with the**. This information provides some insight into how word pairs can help predict the next word.* 
+
+```{r Tribargraphs, echo=FALSE}
+
+
+# Select the top 25 Tri-Grams for analysis
+ dfTri25       <- data.frame("Term"=names(head(freqTri,25)), 
+                              "Frequency"=head(freqTri,25))
+ dfTri25$Term1 <- reorder(dfTri25$Term, dfTri25$Frequency)
+   
+ TriPlot <-
+        ggplot(dfTri25, aes(x = Term1, y = Frequency))                                     +
+        geom_bar(stat = "identity", color="gray55", fill="grey")                         +
+        geom_text(data=dfTri25,aes(x=Term1,y=-25,label=Frequency),vjust=0, size=3)         +  
+        xlab("Trigram")                                                                  + 
+        ylab("Frequency")                                                                +
+        ggtitle("Top 25 TriGram Tokenized Word Frequency")                               +
+        theme(plot.title = element_text(lineheight=.8, face="bold"))                     +
+        coord_flip()
+  print(TriPlot)
+```
+
+*One of the Tri-Grams appearing most are phrases like **one of the**.  Tri-grams occur less frequently in our sample than Bi-Grams, which is to be expected.* 
+
+## Next Steps
+
+With the initial exploration, complete, the next is to step build an algorithm to predict the next word, based on the n-gram models. The algorithm involves building lookups for each n-gram, using them to predict the next word in a sentence. The process will assume the whole English language is possible input. A shiny app can be built demonstrating the predict next word algorithm.
+
+
+
+
