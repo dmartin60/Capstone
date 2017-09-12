@@ -9,7 +9,7 @@ transition: rotate
 Introduction
 ========================================================
 
-Collecting data has become a commodity.  It's what you do with it that provides value! 
+Collecting and integrating data is now a commodity.  What you do with it provides value! 
 
 As an example, applications derived by statistically modeling collections of text samples have vastly improved smart phone and search engine interfaces.
 
@@ -26,7 +26,7 @@ A frequency dictionary is created from collected text data (corpus), which is us
 
 - Data Collection & Download
   * Swift key Corpus 
-  * Profane words (from WWW.bannedwordlist.com )
+  * Profane words (from http://www.bannedwordlist.com/ )
 - Data (Corpus) Cleansing
 - Tokenization
 - Exploratory Analysis
@@ -47,10 +47,10 @@ https://en.wikipedia.org/wiki/N-gram
 - Katz's back-off is leveraged to return the most common word matched.
 https://en.wikipedia.org/wiki/Katz%27s_back-off_model
  
-Try It!
+Finally!
 ========================================================
  
-The **Next Word** shiny app is easy to use. 
+The **Next Word** shiny app is easy to use! 
 - Try the **Next Word** app here: https://dmartin60.shinyapps.io/nextword/
 - Enter a partial phrase into the **input text box**
 - Predicted Next word(s) are produced under **Next word prediction**
