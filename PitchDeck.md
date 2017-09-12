@@ -1,7 +1,7 @@
-Capstone Project - Next Word Prediction   
+Capstone - Predict the Next Word   
 ========================================================
 author: Don Martin 
-date: 9/11/2017
+date: 9/12/2017
 autosize: true
 font-family: 'Times'
 transition: rotate
@@ -39,7 +39,7 @@ Methods & Models
 
 - A corpus sample was cleansed by folding characters to lower case, removing punctuation, numbers, links, white, space, special characters, and profanity.
 
-- The n-grams are used to create frequency dictionaries, used in the Shiny application to predict the next word
+- N-grams are used to create frequency dictionaries, used by the Shiny application to predict the next word
 https://en.wikipedia.org/wiki/N-gram
 
 - The sample was tokenized into Uni-Grams, Bi-Grams, and Tri-Grams.
@@ -56,7 +56,7 @@ The **Next Word** shiny app is easy to use.
 - Predicted Next word(s) are produced under **Next word prediction**
 - Can change parameters in the **settings panel** to customize the output
 - A milestone report documenting the Exploratory Analysis can be found here: http://rpubs.com/dmartin60/307195
-- The shiny application code and related scripts, can be found in this GitHub repo: http://rpubs.com/dmartin60/307195
+- The shiny application code and related scripts, can be found in this GitHub repo: https://github.com/dmartin60/Capstone
 
 
  
